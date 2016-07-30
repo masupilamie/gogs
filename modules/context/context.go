@@ -87,6 +87,16 @@ func (ctx *Context) RenderWithErr(msg string, tpl base.TplName, form interface{}
 	ctx.HTML(200, tpl)
 }
 
+// RenderWithErrStatus same usage than RenderWithErr with an extra http_status parameter
+func (ctx *Context) RenderWithErrStatus(msg string, tpl base.TplName, form interface{}, http_status int) {
+	if form != nil {
+		auth.AssignForm(form, ctx.Data)
+	}
+	ctx.Flash.ErrorMsg = msg
+	ctx.Data["Flash"] = ctx.Flash
+	ctx.HTML(http_status, tpl)
+}
+
 // Handle handles and logs error by given status.
 func (ctx *Context) Handle(status int, title string, err error) {
 	if err != nil {

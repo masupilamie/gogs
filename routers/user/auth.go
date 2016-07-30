@@ -26,15 +26,15 @@ const (
 	RESET_PASSWORD  base.TplName = "user/auth/reset_passwd"
 )
 
-// AutoSignIn reads cookie and try to auto-login.
-func AutoSignIn(ctx *context.Context) (bool, error) {
+// AutoSignIn reads cookie and try to auto-login. returns isSucceed, err, http_status
+func AutoSignIn(ctx *context.Context) (bool, error, int) {
 	if !models.HasEngine {
-		return false, nil
+		return false, nil, 200
 	}
 
 	uname := ctx.GetCookie(setting.CookieUserName)
 	if len(uname) == 0 {
-		return false, nil
+		return false, nil, 200
 	}
 
 	isSucceed := false
@@ -48,31 +48,33 @@ func AutoSignIn(ctx *context.Context) (bool, error) {
 
 	u, err := models.GetUserByName(uname)
 	if err != nil {
+		log.Warn("%s Authentication failure for user %s", ctx.RemoteAddr(), uname)
 		if !models.IsErrUserNotExist(err) {
-			return false, fmt.Errorf("GetUserByName: %v", err)
+			return false, fmt.Errorf("GetUserByName: %v", err), 401
 		}
-		return false, nil
+		return false, nil, 401
 	}
 
 	if val, _ := ctx.GetSuperSecureCookie(
 		base.EncodeMD5(u.Rands+u.Passwd), setting.CookieRememberName); val != u.Name {
-		return false, nil
+		log.Warn("%s Authentication failure for user %s", ctx.RemoteAddr(), uname)
+		return false, nil, 401
 	}
 
 	isSucceed = true
 	ctx.Session.Set("uid", u.ID)
 	ctx.Session.Set("uname", u.Name)
 	ctx.SetCookie(setting.CSRFCookieName, "", -1, setting.AppSubUrl)
-	return true, nil
+	return true, nil, 200
 }
 
 func SignIn(ctx *context.Context) {
 	ctx.Data["Title"] = ctx.Tr("sign_in")
 
 	// Check auto-login.
-	isSucceed, err := AutoSignIn(ctx)
+	isSucceed, err, http_status := AutoSignIn(ctx)
 	if err != nil {
-		ctx.Handle(500, "AutoSignIn", err)
+		ctx.Handle(http_status, "AutoSignIn", err)
 		return
 	}
 
@@ -86,21 +88,22 @@ func SignIn(ctx *context.Context) {
 		return
 	}
 
-	ctx.HTML(200, SIGNIN)
+	ctx.HTML(http_status, SIGNIN)
 }
 
 func SignInPost(ctx *context.Context, form auth.SignInForm) {
 	ctx.Data["Title"] = ctx.Tr("sign_in")
 
 	if ctx.HasError() {
-		ctx.HTML(200, SIGNIN)
+		ctx.HTML(400, SIGNIN)
 		return
 	}
 
 	u, err := models.UserSignIn(form.UserName, form.Password)
 	if err != nil {
 		if models.IsErrUserNotExist(err) {
-			ctx.RenderWithErr(ctx.Tr("form.username_password_incorrect"), SIGNIN, &form)
+			log.Warn("%s Authentication failure for user %s", ctx.RemoteAddr(), form.UserName)
+			ctx.RenderWithErrStatus(ctx.Tr("form.username_password_incorrect"), SIGNIN, &form, 401)
 		} else {
 			ctx.Handle(500, "UserSignIn", err)
 		}
@@ -335,7 +338,7 @@ func ForgotPasswdPost(ctx *context.Context) {
 	if err != nil {
 		if models.IsErrUserNotExist(err) {
 			ctx.Data["Err_Email"] = true
-			ctx.RenderWithErr(ctx.Tr("auth.email_not_associate"), FORGOT_PASSWORD, nil)
+			ctx.RenderWithErrStatus(ctx.Tr("auth.email_not_associate"), FORGOT_PASSWORD, nil, 401)
 		} else {
 			ctx.Handle(500, "user.ResetPasswd(check existence)", err)
 		}

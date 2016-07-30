@@ -182,7 +182,7 @@ func MigratePost(ctx *context.Context, form auth.MigrateRepoForm) {
 			case addrErr.IsURLError:
 				ctx.RenderWithErr(ctx.Tr("form.url_error"), MIGRATE, &form)
 			case addrErr.IsPermissionDenied:
-				ctx.RenderWithErr(ctx.Tr("repo.migrate.permission_denied"), MIGRATE, &form)
+				ctx.RenderWithErrStatus(ctx.Tr("repo.migrate.permission_denied"), MIGRATE, &form, 403)
 			case addrErr.IsInvalidPath:
 				ctx.RenderWithErr(ctx.Tr("repo.migrate.invalid_local_path"), MIGRATE, &form)
 			default:
