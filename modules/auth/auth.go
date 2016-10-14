@@ -51,6 +51,7 @@ func SignedInID(ctx *macaron.Context, sess session.Store) int64 {
 			if err != nil {
 				if models.IsErrAccessTokenNotExist(err) || models.IsErrAccessTokenEmpty(err) {
 					log.Error(4, "GetAccessTokenBySHA: %v", err)
+					log.Warn("%s Authentication failure using wrong token", ctx.RemoteAddr())
 				}
 				return 0
 			}
